@@ -1,32 +1,21 @@
 package com.booking.controller;
 
-
-import java.math.BigDecimal;
-import java.util.List;
-
+import com.booking.dto.request.ReservationRequest;
+import com.booking.dto.response.ReservationResponse;
+import com.booking.enums.ReservationStatus;
+import com.booking.service.ReservationService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
-import com.booking.dto.request.ReservationRequest;
-import com.booking.dto.response.ReservationResponse;
-import com.booking.enums.ReservationStatus;
-import com.booking.service.ReservationService;
-
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
+import java.math.BigDecimal;
+import java.util.List;
 
 @RestController
 @RequestMapping("/reservations")
@@ -35,6 +24,7 @@ public class ReservationController {
 
     private final ReservationService reservationService;
 
+    // USER creates a reservation
     @PostMapping
     public ResponseEntity<ReservationResponse> createReservation(
             @Valid @RequestBody ReservationRequest request) {
@@ -44,6 +34,7 @@ public class ReservationController {
                 .body(reservationService.createReservation(request));
     }
 
+    // USER gets only their own reservations
     @GetMapping("/my")
     public ResponseEntity<List<ReservationResponse>> getMyReservations() {
 
@@ -52,6 +43,8 @@ public class ReservationController {
         );
     }
 
+    // USER can get their own reservation.
+    // ADMIN can get any reservation.
     @GetMapping("/{id}")
     public ResponseEntity<ReservationResponse> getReservationById(
             @PathVariable Long id) {
@@ -61,9 +54,10 @@ public class ReservationController {
         );
     }
 
+    // ADMIN only
+    // Supports status, minPrice, maxPrice, pagination and sorting.
     @GetMapping
     public ResponseEntity<Page<ReservationResponse>> getAllReservations(
-
             @RequestParam(required = false)
             ReservationStatus status,
 
@@ -89,6 +83,8 @@ public class ReservationController {
                 )
         );
     }
+
+    // ADMIN only
     @PatchMapping("/{id}/status")
     public ResponseEntity<ReservationResponse> updateStatus(
             @PathVariable Long id,
@@ -102,6 +98,7 @@ public class ReservationController {
         );
     }
 
+    // ADMIN only
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteReservation(
             @PathVariable Long id) {

@@ -1,12 +1,13 @@
 package com.booking.service.impl;
 
-
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -41,34 +42,29 @@ public class ReservationServiceImpl implements ReservationService {
     public ReservationResponse createReservation(
             ReservationRequest request) {
 
-        // 1. Get currently authenticated user
-        User currentUser = getAuthenticatedUser();
+        User user = getAuthenticatedUser();
 
-        // 2. Find requested resource
         Resource resource = resourceRepository
-                .findById(request.getResourceId())
+                .findByIdForUpdate(request.getResourceId())
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "Resource not found with id: "
                                         + request.getResourceId()
                         ));
 
-        // 3. Validate time
-        validateTime(
+        validateReservationTime(
                 request.getStartTime(),
                 request.getEndTime()
         );
 
-        // 4. Check resource availability
         if (!resource.isAvailable()) {
             throw new BadRequestException(
                     "Resource is currently unavailable"
             );
         }
 
-        // 5. Check overlapping reservation
-        boolean overlapping = reservationRepository
-                .existsOverlappingReservation(
+        boolean overlapping =
+                reservationRepository.existsOverlappingReservation(
                         resource.getId(),
                         request.getStartTime(),
                         request.getEndTime()
@@ -80,9 +76,8 @@ public class ReservationServiceImpl implements ReservationService {
             );
         }
 
-        // 6. Create reservation
         Reservation reservation = Reservation.builder()
-                .user(currentUser)
+                .user(user)
                 .resource(resource)
                 .startTime(request.getStartTime())
                 .endTime(request.getEndTime())
@@ -90,28 +85,27 @@ public class ReservationServiceImpl implements ReservationService {
                 .status(ReservationStatus.PENDING)
                 .build();
 
-        // 7. Save
         Reservation savedReservation =
                 reservationRepository.save(reservation);
 
         return mapToResponse(savedReservation);
-    }
-
-    @Override
+    }    @Override
     @Transactional(readOnly = true)
     public ReservationResponse getReservationById(Long id) {
 
         User currentUser = getAuthenticatedUser();
 
-        Reservation reservation = getReservation(id);
+        Reservation reservation = findReservation(id);
 
-        // USER can only access own reservation.
-        // ADMIN can access any reservation.
+        /*
+         * ADMIN can view any reservation.
+         * USER can view only their own reservation.
+         */
         if (!isAdmin(currentUser)
                 && !reservation.getUser().getId()
-                        .equals(currentUser.getId())) {
+                .equals(currentUser.getId())) {
 
-            throw new BadRequestException(
+            throw new AccessDeniedException(
                     "You are not allowed to access this reservation"
             );
         }
@@ -134,6 +128,7 @@ public class ReservationServiceImpl implements ReservationService {
 
     @Override
     @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('ADMIN')")
     public Page<ReservationResponse> getAllReservations(
             ReservationStatus status,
             BigDecimal minPrice,
@@ -145,27 +140,35 @@ public class ReservationServiceImpl implements ReservationService {
                 && minPrice.compareTo(maxPrice) > 0) {
 
             throw new BadRequestException(
-                    "minPrice cannot be greater than maxPrice");
+                    "Minimum price cannot be greater than maximum price"
+            );
         }
 
-        Specification<Reservation> specification =
-                ReservationSpecification.filter(
-                        status,
-                        minPrice,
-                        maxPrice
-                );
-
         return reservationRepository
-                .findAll(specification, pageable)
+                .findAll(
+                        ReservationSpecification.filter(
+                                status,
+                                minPrice,
+                                maxPrice
+                        ),
+                        pageable
+                )
                 .map(this::mapToResponse);
     }
 
     @Override
+    @PreAuthorize("hasRole('ADMIN')")
     public ReservationResponse updateReservationStatus(
             Long id,
             ReservationStatus status) {
 
-        Reservation reservation = getReservation(id);
+        Reservation reservation = findReservation(id);
+
+        if (status == null) {
+            throw new BadRequestException(
+                    "Reservation status is required"
+            );
+        }
 
         validateStatusTransition(
                 reservation.getStatus(),
@@ -180,16 +183,19 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     public void cancelReservation(Long id) {
 
-        Reservation reservation = getReservation(id);
-
         User currentUser = getAuthenticatedUser();
 
-        // USER can cancel only own reservation.
+        Reservation reservation = findReservation(id);
+
+        /*
+         * ADMIN can cancel any reservation.
+         * USER can cancel only their own reservation.
+         */
         if (!isAdmin(currentUser)
                 && !reservation.getUser().getId()
-                        .equals(currentUser.getId())) {
+                .equals(currentUser.getId())) {
 
-            throw new BadRequestException(
+            throw new AccessDeniedException(
                     "You are not allowed to cancel this reservation"
             );
         }
@@ -202,22 +208,21 @@ public class ReservationServiceImpl implements ReservationService {
             );
         }
 
-        reservation.setStatus(
-                ReservationStatus.CANCELLED
-        );
+        reservation.setStatus(ReservationStatus.CANCELLED);
     }
 
     @Override
+    @PreAuthorize("hasRole('ADMIN')")
     public void deleteReservation(Long id) {
 
-        Reservation reservation = getReservation(id);
+        Reservation reservation = findReservation(id);
 
         reservationRepository.delete(reservation);
     }
 
-    // --------------------------------------------------
+    // =========================================================
     // Helper methods
-    // --------------------------------------------------
+    // =========================================================
 
     private User getAuthenticatedUser() {
 
@@ -229,21 +234,20 @@ public class ReservationServiceImpl implements ReservationService {
         if (authentication == null
                 || !authentication.isAuthenticated()) {
 
-            throw new BadRequestException(
-                    "User is not authenticated"
+            throw new AccessDeniedException(
+                    "Authentication is required"
             );
         }
 
-        String email = authentication.getName();
-
-        return userRepository.findByEmail(email)
+        return userRepository
+                .findByEmail(authentication.getName())
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
                                 "Authenticated user not found"
                         ));
     }
 
-    private Reservation getReservation(Long id) {
+    private Reservation findReservation(Long id) {
 
         return reservationRepository.findById(id)
                 .orElseThrow(() ->
@@ -254,12 +258,13 @@ public class ReservationServiceImpl implements ReservationService {
 
     private boolean isAdmin(User user) {
 
-        return user.getRole().name().equals("ADMIN");
+        return user.getRole() != null
+                && user.getRole().name().equals("ADMIN");
     }
 
-    private void validateTime(
-            java.time.LocalDateTime startTime,
-            java.time.LocalDateTime endTime) {
+    private void validateReservationTime(
+            LocalDateTime startTime,
+            LocalDateTime endTime) {
 
         if (!startTime.isBefore(endTime)) {
 
@@ -273,8 +278,7 @@ public class ReservationServiceImpl implements ReservationService {
             ReservationStatus currentStatus,
             ReservationStatus newStatus) {
 
-        if (currentStatus
-                == ReservationStatus.CANCELLED) {
+        if (currentStatus == ReservationStatus.CANCELLED) {
 
             throw new BadRequestException(
                     "Cancelled reservation cannot be modified"
@@ -304,6 +308,4 @@ public class ReservationServiceImpl implements ReservationService {
                 .status(reservation.getStatus())
                 .build();
     }
-
-	
 }

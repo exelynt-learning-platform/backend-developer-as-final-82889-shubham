@@ -1,9 +1,9 @@
 package com.booking.security;
 
-
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -18,7 +18,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
-
+    private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
@@ -29,66 +30,109 @@ public class SecurityConfig {
             HttpSecurity http) throws Exception {
 
         http
-                .csrf(csrf -> csrf.disable())
+            .csrf(csrf -> csrf.disable())
 
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(
-                                SessionCreationPolicy.STATELESS
-                        ))
+            .sessionManagement(session ->
+                    session.sessionCreationPolicy(
+                            SessionCreationPolicy.STATELESS))
+            
+            .exceptionHandling(exceptions ->
+            exceptions
+                    .authenticationEntryPoint(
+                            jwtAuthenticationEntryPoint
+                    )
+                    .accessDeniedHandler(
+                            customAccessDeniedHandler
+                    )
+    )
 
-                .authorizeHttpRequests(auth -> auth
+            .authorizeHttpRequests(auth -> auth
 
-                        // Authentication
-                        .requestMatchers("/auth/**")
-                        .permitAll()
+                // Authentication
+                .requestMatchers("/auth/**").permitAll()
 
-                        // Swagger/OpenAPI
-                        .requestMatchers(
-                                "/swagger-ui/**",
-                                "/swagger-ui.html",
-                                "/v3/api-docs/**"
-                        )
-                        .permitAll()
+                // Swagger / OpenAPI
+                .requestMatchers(
+                        "/swagger-ui/**",
+                        "/swagger-ui.html",
+                        "/v3/api-docs/**"
+                ).permitAll()
 
-                        // Resource read operations
-                        .requestMatchers(
-                                org.springframework.http.HttpMethod.GET,
-                                "/resources/**"
-                        )
-                        .authenticated()
+                // =========================
+                // RESOURCE ENDPOINTS
+                // =========================
 
-                        // Resource modification
-                        .requestMatchers(
-                                org.springframework.http.HttpMethod.POST,
-                                "/resources/**"
-                        )
-                        .hasRole("ADMIN")
+                // USER + ADMIN can read resources
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/resources/**"
+                ).authenticated()
 
-                        .requestMatchers(
-                                org.springframework.http.HttpMethod.PUT,
-                                "/resources/**"
-                        )
-                        .hasRole("ADMIN")
+                // ADMIN only
+                .requestMatchers(
+                        HttpMethod.POST,
+                        "/resources/**"
+                ).hasRole("ADMIN")
 
-                        .requestMatchers(
-                                org.springframework.http.HttpMethod.DELETE,
-                                "/resources/**"
-                        )
-                        .hasRole("ADMIN")
+                .requestMatchers(
+                        HttpMethod.PUT,
+                        "/resources/**"
+                ).hasRole("ADMIN")
 
-                        // Reservations
-                        .requestMatchers("/reservations/**")
-                        .authenticated()
+                .requestMatchers(
+                        HttpMethod.DELETE,
+                        "/resources/**"
+                ).hasRole("ADMIN")
 
-                        // Everything else
-                        .anyRequest()
-                        .authenticated()
-                )
+                // =========================
+                // RESERVATION ENDPOINTS
+                // =========================
 
-                .addFilterBefore(
-                        jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class
-                );
+                // USER creates reservation
+                .requestMatchers(
+                        HttpMethod.POST,
+                        "/reservations"
+                ).hasRole("USER")
+
+                // USER's own reservations
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/reservations/my"
+                ).hasRole("USER")
+
+                // ADMIN gets all reservations
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/reservations"
+                ).hasRole("ADMIN")
+
+                // Individual reservation:
+                // ownership will be checked in service layer
+                .requestMatchers(
+                        HttpMethod.GET,
+                        "/reservations/*"
+                ).authenticated()
+
+                // ADMIN changes reservation status
+                .requestMatchers(
+                        HttpMethod.PATCH,
+                        "/reservations/*/status"
+                ).hasRole("ADMIN")
+
+                // ADMIN deletes reservation
+                .requestMatchers(
+                        HttpMethod.DELETE,
+                        "/reservations/**"
+                ).hasRole("ADMIN")
+
+                // Everything else requires authentication
+                .anyRequest().authenticated()
+            )
+
+            .addFilterBefore(
+                    jwtAuthenticationFilter,
+                    UsernamePasswordAuthenticationFilter.class
+            );
 
         return http.build();
     }
