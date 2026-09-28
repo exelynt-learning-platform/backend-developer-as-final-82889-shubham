@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: resource-booking-system
+
+  datasource:
+      url: ${DB_URL:jdbc:mysql://localhost:3306/resource_booking_db}
+      username: ${DB_USERNAME:root}
+      password: ${DB_PASSWORD:your_local_password}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        '[format_sql]': true
+
+server:
+  port: 8080
+
+jwt:
+  secret: ${JWT_SECRET:mySecretKeyForResourceBookingSystemJwt2026VerySecure}
+  expiration: 3600000
