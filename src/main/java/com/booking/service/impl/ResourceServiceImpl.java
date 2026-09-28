@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.booking.dto.request.ResourceRequest;
 import com.booking.dto.response.ResourceResponse;
 import com.booking.entity.Resource;
-import com.booking.exeption.ResourceNotFoundException;
+import com.booking.exception.ResourceNotFoundException;
 import com.booking.repository.ResourceRepository;
 import com.booking.service.ResourceService;
 

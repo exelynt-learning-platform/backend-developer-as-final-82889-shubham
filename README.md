@@ -630,6 +630,14 @@ Example:
 /reservations/1/status?status=CONFIRMED
 ```
 
+#### Cancel Reservation
+
+```http
+PATCH /reservations/{id}/cancel
+```
+
+A normal user can cancel only their own reservation. An administrator can cancel any reservation.
+
 #### Delete Reservation
 
 ```http

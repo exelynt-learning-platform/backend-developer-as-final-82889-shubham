@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.booking.dto.request.LoginRequest;
 import com.booking.dto.response.LoginResponse;
 import com.booking.entity.User;
-import com.booking.exeption.BadRequestException;
+import com.booking.exception.BadRequestException;
 import com.booking.repository.UserRepository;
 import com.booking.security.JwtService;
 import com.booking.service.AuthService;

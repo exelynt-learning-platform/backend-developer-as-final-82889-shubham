@@ -98,6 +98,16 @@ public class ReservationController {
         );
     }
 
+    // USER can cancel own reservation; ADMIN can cancel any reservation
+    @PatchMapping("/{id}/cancel")
+    public ResponseEntity<Void> cancelReservation(
+            @PathVariable Long id) {
+
+        reservationService.cancelReservation(id);
+
+        return ResponseEntity.noContent().build();
+    }
+
     // ADMIN only
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteReservation(

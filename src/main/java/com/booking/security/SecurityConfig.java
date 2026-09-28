@@ -113,6 +113,12 @@ public class SecurityConfig {
                         "/reservations/*"
                 ).authenticated()
 
+                // USER can cancel own reservation / ADMIN can cancel any reservation
+                .requestMatchers(
+                        HttpMethod.PATCH,
+                        "/reservations/*/cancel"
+                ).authenticated()
+
                 // ADMIN changes reservation status
                 .requestMatchers(
                         HttpMethod.PATCH,

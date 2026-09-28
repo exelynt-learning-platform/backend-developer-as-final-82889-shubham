@@ -1,4 +1,4 @@
-package com.booking.exeption;
+package com.booking.exception;
 
 
 public class DuplicateResourceException extends RuntimeException {

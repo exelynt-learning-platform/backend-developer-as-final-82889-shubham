@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import com.booking.dto.response.ErrorResponse;
 import com.booking.dto.response.ValidationErrorResponse;
-import com.booking.exeption.BadRequestException;
-import com.booking.exeption.DuplicateResourceException;
-import com.booking.exeption.ResourceNotFoundException;
+import com.booking.exception.BadRequestException;
+import com.booking.exception.DuplicateResourceException;
+import com.booking.exception.ResourceNotFoundException;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;

@@ -24,6 +24,7 @@ import com.booking.entity.Reservation;
 import com.booking.entity.Resource;
 import com.booking.entity.User;
 import com.booking.enums.ReservationStatus;
+import com.booking.exception.BadRequestException;
 import com.booking.repository.ReservationRepository;
 import com.booking.repository.ResourceRepository;
 import com.booking.repository.UserRepository;
@@ -181,8 +182,76 @@ class ReservationServiceImplTest {
                 .thenReturn(Optional.empty());
 
         assertThrows(
-                com.booking.exeption.ResourceNotFoundException.class,
+                com.booking.exception.ResourceNotFoundException.class,
                 () -> reservationService.getReservationById(999L)
+        );
+    }
+
+    @Test
+    void userCanCancelOwnReservation() {
+
+        authenticateAs(user);
+
+        when(userRepository.findByEmail(user.getEmail()))
+                .thenReturn(Optional.of(user));
+
+        when(reservationRepository.findById(100L))
+                .thenReturn(Optional.of(reservation));
+
+        reservationService.cancelReservation(100L);
+
+        assertEquals(ReservationStatus.CANCELLED, reservation.getStatus());
+    }
+
+    @Test
+    void userCannotCancelAnotherUsersReservation() {
+
+        authenticateAs(anotherUser);
+
+        when(userRepository.findByEmail(anotherUser.getEmail()))
+                .thenReturn(Optional.of(anotherUser));
+
+        when(reservationRepository.findById(100L))
+                .thenReturn(Optional.of(reservation));
+
+        assertThrows(
+                AccessDeniedException.class,
+                () -> reservationService.cancelReservation(100L)
+        );
+    }
+
+    @Test
+    void adminCanCancelAnyReservation() {
+
+        authenticateAs(admin);
+
+        when(userRepository.findByEmail(admin.getEmail()))
+                .thenReturn(Optional.of(admin));
+
+        when(reservationRepository.findById(100L))
+                .thenReturn(Optional.of(reservation));
+
+        reservationService.cancelReservation(100L);
+
+        assertEquals(ReservationStatus.CANCELLED, reservation.getStatus());
+    }
+
+    @Test
+    void alreadyCancelledReservationThrowsBadRequestException() {
+
+        authenticateAs(user);
+
+        reservation.setStatus(ReservationStatus.CANCELLED);
+
+        when(userRepository.findByEmail(user.getEmail()))
+                .thenReturn(Optional.of(user));
+
+        when(reservationRepository.findById(100L))
+                .thenReturn(Optional.of(reservation));
+
+        assertThrows(
+                BadRequestException.class,
+                () -> reservationService.cancelReservation(100L)
         );
     }
 
